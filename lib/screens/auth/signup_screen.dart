@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../services/api_service.dart';
+import '../home/explore_screen.dart';
 import 'signin_screen.dart';
+
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -12,8 +15,8 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   String _role = 'Traveler';
-  final _firstCtrl = TextEditingController(text: 'Yoo');
-  final _lastCtrl = TextEditingController(text: 'Jin');
+  final _firstCtrl = TextEditingController();
+  final _lastCtrl = TextEditingController();
   final _countryCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -21,6 +24,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscure1 = true;
   bool _obscure2 = true;
   bool _agreed = false;
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -31,6 +35,74 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
+  }
+
+  // HÀM ĐĂNG KÝ THẬT
+  Future<void> _signUp() async {
+    final first = _firstCtrl.text.trim();
+    final last = _lastCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final pass = _passCtrl.text.trim();
+    final confirm = _confirmCtrl.text.trim();
+
+    // Validation
+    if (first.isEmpty || last.isEmpty || email.isEmpty || pass.isEmpty) {
+      _showSnack('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+    if (pass != confirm) {
+      _showSnack('Mật khẩu xác nhận không khớp');
+      return;
+    }
+    if (pass.length < 6) {
+      _showSnack('Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+    if (!_agreed) {
+      _showSnack('Vui lòng đồng ý với điều khoản');
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final result = await ApiService.register(
+        '$first $last',
+        email,
+        pass,
+      );
+
+      if (result['success'] == true) {
+        // Lưu token
+        await ApiService.saveToken(result['token']);
+        await ApiService.saveUserId(result['user']['id']);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đăng ký thành công! 🎉'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const ExploreScreen()),
+          );
+        }
+      } else {
+        _showSnack(result['message'] ?? 'Đăng ký thất bại');
+      }
+    } catch (e) {
+      _showSnack('Lỗi kết nối: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
   @override
@@ -55,6 +127,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             fontWeight: FontWeight.w700,
                             color: AppColors.textDark)),
                     const SizedBox(height: 20),
+
                     // Role selector
                     Row(
                       children: ['Traveler', 'Guide'].map((r) {
@@ -103,6 +176,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       }).toList(),
                     ),
                     const SizedBox(height: 20),
+
+                    // First + Last name
                     Row(
                       children: [
                         Expanded(
@@ -113,8 +188,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               const SizedBox(height: 8),
                               TextField(
                                   controller: _firstCtrl,
-                                  decoration:
-                                      const InputDecoration(hintText: 'Yoo')),
+                                  decoration: const InputDecoration(
+                                      hintText: 'Nguyen')),
                             ],
                           ),
                         ),
@@ -128,35 +203,38 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               TextField(
                                   controller: _lastCtrl,
                                   decoration:
-                                      const InputDecoration(hintText: 'Jin')),
+                                      const InputDecoration(hintText: 'Van A')),
                             ],
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
+
                     FieldLabel('Country'),
                     const SizedBox(height: 8),
                     TextField(
                         controller: _countryCtrl,
                         decoration:
-                            const InputDecoration(hintText: 'Country')),
+                            const InputDecoration(hintText: 'Vietnam')),
                     const SizedBox(height: 16),
+
                     FieldLabel('Email'),
                     const SizedBox(height: 8),
                     TextField(
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
-                        decoration:
-                            const InputDecoration(hintText: 'Type email')),
+                        decoration: const InputDecoration(
+                            hintText: 'example@gmail.com')),
                     const SizedBox(height: 16),
+
                     FieldLabel('Password'),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _passCtrl,
                       obscureText: _obscure1,
                       decoration: InputDecoration(
-                        hintText: 'Type password',
+                        hintText: 'Tối thiểu 6 ký tự',
                         suffixIcon: IconButton(
                           icon: Icon(
                               _obscure1
@@ -169,10 +247,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text('Password has 8+ chars, 1 letter & 1 number',
+                    const Text('Password has 6+ chars',
                         style: TextStyle(
                             color: AppColors.textLight, fontSize: 11)),
                     const SizedBox(height: 16),
+
                     FieldLabel('Confirm Password'),
                     const SizedBox(height: 8),
                     TextField(
@@ -192,6 +271,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+
+                    // Checkbox
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -235,10 +316,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
+
+                    // SIGN UP BUTTON
                     ElevatedButton(
-                        onPressed: _agreed ? () {} : null,
-                        child: const Text('SIGN UP')),
+                      onPressed: (_agreed && !_loading) ? _signUp : null,
+                      child: _loading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text('SIGN UP'),
+                    ),
+
                     const SizedBox(height: 24),
+
                     Center(
                       child: GestureDetector(
                         onTap: () => Navigator.pushReplacement(

@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../services/api_service.dart';
 
 class TourDetailScreen extends StatefulWidget {
   final Map<String, dynamic> tour;
@@ -14,6 +15,51 @@ class TourDetailScreen extends StatefulWidget {
 class _TourDetailScreenState extends State<TourDetailScreen> {
   int _selectedDay = 0;
   bool _isSaved = false;
+  String _usdPrice = '';
+  List<dynamic> _photos = [];
+  bool _loadingPhotos = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrency();
+    _loadPhotos();
+  }
+
+  Future<void> _loadPhotos() async {
+    setState(() => _loadingPhotos = true);
+    final query = widget.tour['title'] ?? widget.tour['location'] ?? 'Vietnam travel';
+    final photos = await ApiService.getPhotos(query, count: 5);
+    if (mounted) {
+      setState(() {
+        _photos = photos;
+        _loadingPhotos = false;
+      });
+    }
+  }
+
+  Future<void> _loadCurrency() async {
+    final data = await ApiService.getCurrency(
+      from: 'VND',
+      to: 'USD',
+      amount: 1,
+    );
+    if (data != null && data['success'] == true && mounted) {
+      final price = widget.tour['price'];
+      double vndAmount = 0;
+      if (price is String) {
+        vndAmount = double.tryParse(
+                price.replaceAll('\$', '').replaceAll('đ', '').replaceAll(',', '')) ??
+            0;
+      } else if (price is num) {
+        vndAmount = price.toDouble();
+      }
+      final rate = (data['rate'] as num).toDouble();
+      setState(() {
+        _usdPrice = '\$${(vndAmount * rate).toStringAsFixed(2)}';
+      });
+    }
+  }
 
   final List<Map<String, dynamic>> _schedule = [
     {
@@ -143,21 +189,21 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
                         color: Colors.white, size: 18),
                   ),
                 ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF0099CC), Color(0xFF00C48C)],
-                      ),
-                    ),
-                    child: Center(
-                      child: Icon(Icons.landscape_rounded,
-                          color: Colors.white.withOpacity(0.3), size: 80),
-                    ),
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: widget.tour['image'] != null && widget.tour['image'].toString().isNotEmpty
+                        ? Image.network(
+                            widget.tour['image'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              'assets/images/dragon_bridge.png',
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Image.asset(
+                            'assets/images/dragon_bridge.png',
+                            fit: BoxFit.cover,
+                          ),
                   ),
-                ),
               ),
 
               SliverToBoxAdapter(
@@ -188,12 +234,20 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    widget.tour['price'] ?? '\$400.00',
+                                    widget.tour['price'] ?? '3,000,000đ',
                                     style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w700,
                                         color: AppColors.primary),
                                   ),
+                                  if (_usdPrice.isNotEmpty)
+                                    Text(
+                                      '≈ $_usdPrice',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.textGrey,
+                                      ),
+                                    ),
                                   const Text('\$480.00',
                                       style: TextStyle(
                                           fontSize: 12,
@@ -281,6 +335,66 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 8),
+
+                    // ── Photos từ Unsplash ──
+                    if (_loadingPhotos || _photos.isNotEmpty)
+                      Container(
+                        color: AppColors.white,
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Photos',
+                                style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textDark)),
+                            const SizedBox(height: 12),
+                            _loadingPhotos
+                                ? const Center(child: CircularProgressIndicator())
+                                : SizedBox(
+                                    height: 120,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _photos.length,
+                                      itemBuilder: (_, i) {
+                                        final photo = _photos[i];
+                                        return Container(
+                                          width: 160,
+                                          margin: const EdgeInsets.only(right: 10),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(12),
+                                            color: AppColors.primary.withOpacity(0.1),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Image.network(
+                                              photo['thumb'] ?? photo['url'] ?? '',
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Center(
+                                                child: Icon(Icons.image_outlined,
+                                                    color: AppColors.primary.withOpacity(0.3),
+                                                    size: 32),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Photos by Unsplash',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textLight,
+                                  fontStyle: FontStyle.italic),
+                            ),
+                          ],
+                        ),
+                      ),
 
                     const SizedBox(height: 8),
 

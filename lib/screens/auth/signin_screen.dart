@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../services/api_service.dart';
 import '../home/explore_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
@@ -16,12 +17,59 @@ class _SignInScreenState extends State<SignInScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
+  bool _loading = false; // thêm loading state
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
+  }
+
+  // HÀM ĐĂNG NHẬP THẬT
+  Future<void> _signIn() async {
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập email và mật khẩu')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final result = await ApiService.login(email, password);
+
+      if (result['success'] == true) {
+        // Lưu token
+        await ApiService.saveToken(result['token']);
+        await ApiService.saveUserId(result['user']['id']);
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const ExploreScreen()),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'] ?? 'Đăng nhập thất bại')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi kết nối: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -49,22 +97,11 @@ class _SignInScreenState extends State<SignInScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    RichText(
-                      text: const TextSpan(
-                        text: 'Welcome back, ',
-                        style: TextStyle(
-                          color: AppColors.textGrey,
-                          fontSize: 14,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: 'Yoo Jin',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                    const Text(
+                      'Welcome back!',
+                      style: TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 14,
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -76,7 +113,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
-                        hintText: 'yoo@gmail.com',
+                        hintText: 'example@gmail.com',
                       ),
                     ),
 
@@ -110,8 +147,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const ForgotPasswordScreen(),
+                            builder: (_) => const ForgotPasswordScreen(),
                           ),
                         ),
                         child: const Text(
@@ -126,15 +162,19 @@ class _SignInScreenState extends State<SignInScreen> {
 
                     const SizedBox(height: 8),
 
-                    // SIGN IN BUTTON (ĐÃ FIX)
+                    // SIGN IN BUTTON
                     ElevatedButton(
-                      onPressed: () => Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ExploreScreen(),
-                        ),
-                      ),
-                      child: const Text('SIGN IN'),
+                      onPressed: _loading ? null : _signIn,
+                      child: _loading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text('SIGN IN'),
                     ),
 
                     const SizedBox(height: 24),
@@ -163,20 +203,11 @@ class _SignInScreenState extends State<SignInScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _SocialBtn(
-                          color: AppColors.facebook,
-                          icon: Icons.facebook,
-                        ),
+                        _SocialBtn(color: AppColors.facebook, icon: Icons.facebook),
                         const SizedBox(width: 16),
-                        _SocialBtn(
-                          color: AppColors.kakao,
-                          icon: Icons.chat_bubble_rounded,
-                        ),
+                        _SocialBtn(color: AppColors.kakao, icon: Icons.chat_bubble_rounded),
                         const SizedBox(width: 16),
-                        _SocialBtn(
-                          color: AppColors.line,
-                          icon: Icons.message_rounded,
-                        ),
+                        _SocialBtn(color: AppColors.line, icon: Icons.message_rounded),
                       ],
                     ),
 
@@ -187,17 +218,12 @@ class _SignInScreenState extends State<SignInScreen> {
                       child: GestureDetector(
                         onTap: () => Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => const SignUpScreen(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const SignUpScreen()),
                         ),
                         child: RichText(
                           text: const TextSpan(
                             text: "Don't have account? ",
-                            style: TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 14,
-                            ),
+                            style: TextStyle(color: AppColors.textGrey, fontSize: 14),
                             children: [
                               TextSpan(
                                 text: 'Sign Up',
@@ -224,15 +250,10 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 }
 
-// SOCIAL BUTTON
 class _SocialBtn extends StatelessWidget {
   final Color color;
   final IconData icon;
-
-  const _SocialBtn({
-    required this.color,
-    required this.icon,
-  });
+  const _SocialBtn({required this.color, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -250,11 +271,7 @@ class _SocialBtn extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(
-        icon,
-        color: AppColors.white,
-        size: 26,
-      ),
+      child: Icon(icon, color: AppColors.white, size: 26),
     );
   }
 }

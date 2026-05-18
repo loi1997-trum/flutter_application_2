@@ -1,5 +1,6 @@
 // lib/screens/trips/trip_detail_screen.dart
 
+import '../../services/api_service.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import 'payment_screen.dart';
@@ -88,9 +89,23 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 style: TextStyle(color: AppColors.textGrey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context); // close dialog
-              Navigator.pop(context); // close trip detail
+            onPressed: () async {
+              Navigator.pop(context); // đóng dialog
+              final tripId = widget.trip['id'] ?? '';
+              if (tripId.isNotEmpty) {
+                final success = await ApiService.deleteTrip(tripId);
+                if (success && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Đã xóa trip ✅'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  Navigator.pop(context); // quay về my trips
+                }
+              } else {
+                Navigator.pop(context);
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
